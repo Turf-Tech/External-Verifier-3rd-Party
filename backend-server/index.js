@@ -54,6 +54,7 @@ const io = new Server(server, {
 const authRequests = new Map();
 
 const apiPath = {
+  getTurfGameIds: "/api/get-gameIds",
   getAuthQr: "/api/get-auth-qr",
   handleVerification: "/api/verification-callback",
 };
