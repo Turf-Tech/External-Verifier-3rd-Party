@@ -15,6 +15,7 @@ const bodyParser = require("body-parser");
 
 const app = express();
 const port = 8080;
+const apiurl = process.env.TURF_VERIFICATION_URL;
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -54,7 +55,7 @@ const io = new Server(server, {
 const authRequests = new Map();
 
 const apiPath = {
-  getTurfGameIds: "/api/get-gameIds",
+  getTurfGameIds: "/api/get-gameids",
   getAuthQr: "/api/get-auth-qr",
   handleVerification: "/api/verification-callback",
 };
@@ -65,10 +66,6 @@ app.get(apiPath.getAuthQr, (req, res) => {
 
 app.post(apiPath.handleVerification, (req, res) => {
   handleVerification(req, res);
-});
-
-app.post("/api/get-vc", async (req, res) => {
-  return await getVC(req, res);
 });
 
 const STATUS = {
@@ -83,12 +80,34 @@ const socketMessage = (fn, status, data) => ({
   data,
 });
 
-app.get("/api/get-gameids", (req, res) => {
-  getAuthQr(req.query.sessionId, fetchGameIdMapper, gameIdsRequest, res);
+app.get("/api/get-gameids", async (req, res) => {
+  try {
+    const authRequest = await getAuthQr(
+      "7f38a193-0918-4a48-9fac-36adfdb8b542",
+      fetchGameIdMapper,
+      gameIdsRequest
+    );
+
+    // Define discord_id
+    const discord_id = req.query.discord_id;
+
+    // Sending POST request to turf service
+    const anotherApiResponse = await axios.post(apiurl, {
+      authRequest: authRequest,
+      discord_id: discord_id,
+    });
+
+    res.status(anotherApiResponse.status).json(anotherApiResponse.data);
+
+    // res.status(200).json(authRequest);
+  } catch (error) {
+    // Handle the error as needed
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // GetQR returns auth request
-async function getAuthQr(sessionId, reason, request, res) {
+async function getAuthQr(sessionId, reason, request) {
   console.log(`getAuthQr for ${sessionId}`);
 
   io.sockets.emit(
@@ -116,7 +135,7 @@ async function getAuthQr(sessionId, reason, request, res) {
     socketMessage("getAuthQr", STATUS.DONE, authRequest)
   );
 
-  return res.status(200).json(authRequest);
+  return authRequest;
 }
 
 // handleVerification verifies the proof after get-auth-qr callbacks
